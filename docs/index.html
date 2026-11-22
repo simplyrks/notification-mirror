@@ -211,6 +211,10 @@
     <label>Refresh every (seconds)
       <input id="cfgInterval" type="number" min="10" max="3600" step="5">
     </label>
+    <div class="dlg-actions">
+      <button type="button" id="testNotifBtn" class="btn">Send a test Mac notification</button>
+      <span id="notifStatus" style="font-size:13px; color:var(--muted)"></span>
+    </div>
     <div id="testResult"></div>
     <div class="dlg-actions">
       <button type="button" id="testBtn" class="btn">Test connection</button>
@@ -522,6 +526,7 @@
     $('#cfgToken').value = cfg.token;
     $('#cfgInterval').value = cfg.interval;
     $('#testResult').textContent = ''; $('#testResult').className = '';
+    $('#notifStatus').textContent = canNotify() ? `Browser permission: ${Notification.permission}${cfg.notify ? '' : ' (turned off in this page)'}` : '';
     $('#settings').showModal();
   }
   $('#testBtn').addEventListener('click', async () => {
@@ -660,6 +665,21 @@
     else if (e.key === '-') resizeViewer(-2);
   });
   $('#notifToggle').addEventListener('click', toggleNotif);
+  $('#testNotifBtn').addEventListener('click', async () => {
+    const st = $('#notifStatus');
+    if (!canNotify()) { st.textContent = 'This browser does not support notifications.'; return; }
+    if (Notification.permission === 'default') await Notification.requestPermission();
+    if (Notification.permission !== 'granted') { st.textContent = 'Browser permission: ' + Notification.permission; return; }
+    cfg.notify = true; LS.set('nm.cfg', cfg); updateNotifBtn(); restartTimer();
+    const newest = [...items.values()].sort((a, b) => b.ts - a.ts)[0];
+    try {
+      const n = new Notification(newest ? `${newest.app} · ${newest.title}` : 'Test notification', {
+        body: newest ? newest.text.slice(0, 500) : 'Mac notifications are working.', tag: 'nm-test',
+      });
+      n.onclick = (e) => { e.preventDefault(); window.focus(); $('#settings').close(); if (newest) openViewer(newest.id); n.close(); };
+      st.textContent = 'Sent. Look at the top-right of your screen.';
+    } catch (err) { st.textContent = 'Failed: ' + err.message; }
+  });
 
   function selectApp(app) {
     selected = app;
